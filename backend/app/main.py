@@ -1,14 +1,14 @@
 # backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import validation
+# MODIFICATION: Import the new generation router
+from app.api.v1.endpoints import validation, generation 
 
 app = FastAPI(title="Neuro-Symbolic Chatbot API")
 
-# Define allowed origins for development.
-# In production, this should be restricted to the frontend's domain.
 origins = [
-    "http://localhost:5173",
+    # Ensure your frontend URL is listed here
+    "http://localhost:5173", 
 ]
 
 app.add_middleware(
@@ -21,3 +21,5 @@ app.add_middleware(
 
 # Include the validation router
 app.include_router(validation.router, prefix="/api/v1", tags=["validation"])
+# MODIFICATION: Include the new generation router
+app.include_router(generation.router, prefix="/api/v1", tags=["generation"])
