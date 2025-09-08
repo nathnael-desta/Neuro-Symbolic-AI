@@ -57,6 +57,6 @@ class PrologService:
 # This creates a single, shared instance of the service for the entire application.
 # IMPORTANT: Adjust the paths to be correct relative to your project's root directory.
 prolog_service = PrologService(
-   knowledge_base_path="../../../data_processing/associations.pl",
-   rules_path="../../../data_processing/rules.pl"
+   knowledge_base_path="../data_processing/associations.pl",
+   rules_path="../data_processing/rules.pl"
 )
