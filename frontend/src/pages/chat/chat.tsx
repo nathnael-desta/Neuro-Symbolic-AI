@@ -1,3 +1,5 @@
+// frontend/src/pages/chat.tsx (or wherever your file is located)
+
 import { ChatInput } from "@/components/custom/chatinput";
 import { PreviewMessage, ThinkingMessage } from "../../components/custom/message";
 import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
@@ -16,94 +18,105 @@ export function Chat() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
 
   async function handleSubmit(text?: string) {
-    // Prevent sending if a request is already in progress
     if (isLoading) return;
 
     const messageText = text || question;
     if (!messageText) return;
 
     setIsLoading(true);
-    // Close sidebar on mobile when a question is submitted
     if (isSidebarOpen && window.innerWidth < 768) {
       setIsSidebarOpen(false);
     }
 
-    // A unique ID for the user message and the corresponding bot message
     const traceId = uuidv4();
-
-    // Add user's message to the UI immediately for a responsive feel
     setMessages(prev => [...prev, { content: messageText, role: "user", id: traceId }]);
-    setQuestion(""); // Clear the input box
+    setQuestion("");
+
+    // --- MODIFICATION START: Input Parsing and API Logic ---
+
+    // 1. Parse the input to get SNP and Trait
+    const parts = messageText.trim().toLowerCase().split(' ');
+    if (parts[0] !== 'validate' || !parts.includes('and') || parts.length < 4) {
+      const errorMessage: message = {
+        content: "Sorry, I didn't understand that. Please use the format: validate <snp> and <trait>",
+        role: "assistant",
+        id: traceId
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setIsLoading(false);
+      return; // Stop execution if format is incorrect
+    }
+    
+    const snp = parts[1];
+    const traitIndex = parts.indexOf('and') + 1;
+    const trait = parts[traitIndex];
 
     try {
-      // Build the API URL dynamically based on the environment
-      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/generate-query`;
+      // 2. Build the API URL for the new endpoint
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/validate`;
 
-      // Make the API call to your Flask backend
-      const response = await axios.post(
-        apiUrl,
-        { question: messageText }
-      );
+      // 3. Make the API call with the new payload
+      const response = await axios.post(apiUrl, { snp, trait });
 
-      // Extract the final answer from the backend's JSON response
-      let botAnswer = response.data.output;
-      const intermediateSteps = response.data.intermediate_steps;
-
-      // Check if the response contains the specific error message
-      if (botAnswer === "Agent stopped due to iteration limit or time limit.") {
-        botAnswer = "I'm sorry, I couldn't find that information in my database.";
-      }
+      // 4. Extract the explanation and the full report from the response
+      const validationReport = response.data;
+      const botAnswer = validationReport.explanation;
 
       // Add the complete bot response to the UI
       const newMessage: message = {
-        content: botAnswer,
+        content: botAnswer, // The user-friendly explanation
         role: "assistant",
         id: traceId,
-        intermediate_steps: intermediateSteps
+        // We can pass the full report for detailed display if needed
+        intermediate_steps: validationReport 
       };
       setMessages(prev => [...prev, newMessage]);
 
     } catch (error) {
       console.error("API call error:", error);
-      // Add an error message to the UI
       const errorMessage: message = {
-        content: "Sorry, I ran into an error. Please check the server logs.",
+        content: "Sorry, an error occurred while talking to the API. Please check the server logs.",
         role: "assistant",
         id: traceId
       };
       setMessages(prev => [...prev, errorMessage]);
-
     } finally {
-      // This will run whether the API call succeeds or fails
       setIsLoading(false);
     }
+    // --- MODIFICATION END ---
   }
 
   return (
     <div className="flex h-dvh bg-background">
+      {/* TODO: Update Sidebar with gene-trait related questions */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onQuestionClick={handleSubmit}
       />
       <div className="flex flex-col flex-1 min-w-0">
-        <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+        {/* MODIFICATION: Updated Header Title */}
+        <Header 
+          title="Gene-Trait Validation Chatbot" 
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+        />
         <div className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4" ref={messagesContainerRef}>
+            {/* MODIFICATION: Updated Welcome/Empty State Message */}
             {messages.length === 0 && (
             <div className="flex h-full items-center justify-center">
               <div className="max-w-xl text-center bg-card rounded-xl shadow-lg p-8 border border-border">
               <h1 className="text-2xl font-bold mb-4 flex items-center justify-center gap-2">
-                Welcome to the NBA Knowledge Graph Chatbot! 
-                <span role="img" aria-label="basketball">🏀</span>
+                Neuro-Symbolic AI Chatbot
+                <span role="img" aria-label="dna">🧬</span>
               </h1>
               <p className="mb-4">
-                This chat is powered by a Neo4j database featuring NBA stars like <strong>LeBron James</strong>, <strong>Kevin Durant</strong>, <strong>Luka Doncic</strong>, and <strong>Giannis Antetokounmpo</strong>, and teams like the <strong>LA Lakers</strong>, <strong>Brooklyn Nets</strong>, and <strong>Dallas Mavericks</strong>.
+                This tool allows you to validate gene-trait associations against a Prolog knowledge base.
               </p>
               <p>
-                You can ask about player stats, team rosters, coaching staff, and game performances.
+                To begin, please use the format: <strong>validate [snp] and [trait]</strong>
               </p>
               <p className="mt-6 text-muted-foreground">
-                Select a suggestion from the sidebar or type a new question.
+                For example: <strong>validate rs2543600 and age_at_death</strong>
               </p>
               </div>
             </div>
