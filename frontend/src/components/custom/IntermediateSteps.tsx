@@ -1,24 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeBlock } from "./CodeBlock";
-
-interface Step {
-    action: {
-        tool: string;
-        tool_input: string;
-        log: string;
-    };
-    observation: any;
-}
+import { ValidationReport } from "../../interfaces/interfaces";
 
 interface IntermediateStepsProps {
-    steps: Step[];
-    finalAnswer: string;
+    report: ValidationReport;
 }
 
-export function IntermediateSteps({ steps, finalAnswer }: IntermediateStepsProps) {
-    if (!steps || steps.length === 0) {
+export function IntermediateSteps({ report }: IntermediateStepsProps) {
+    if (!report || !report.intermediate_steps || report.intermediate_steps.length === 0) {
         return null;
     }
+
+    const { intermediate_steps: steps, explanation: finalAnswer } = report;
 
     const renderObservation = (observation: any) => {
         if (typeof observation === 'string') {
@@ -77,14 +70,14 @@ export function IntermediateSteps({ steps, finalAnswer }: IntermediateStepsProps
                     </CardContent>
                 </Card>
             ))}
-            {steps.length > 1 && (
+            {steps.length > 0 && (
                  <Card key={steps.length} className="bg-background/50">
                     <CardHeader className="p-4">
-                        <CardTitle className="text-base">Step {steps.length + 1}: Formulating Response from Agentic Trace</CardTitle>
+                        <CardTitle className="text-base">Step {steps.length + 1}: Formulating Response</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 p-4 pt-0">
                         <div>
-                            <p className="font-semibold text-sm">Observation:</p>
+                            <p className="font-semibold text-sm">Final Answer:</p>
                             <div className="p-2 bg-secondary rounded-md mt-1">
                                 <p className="text-sm text-muted-foreground">{finalAnswer}</p>
                             </div>

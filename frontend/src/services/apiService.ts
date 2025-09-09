@@ -1,0 +1,31 @@
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_BASE_URL;
+
+const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+
+export async function generateHypotheses(topic: string) {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/generate-hypotheses`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ topic }),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.hypotheses;
+  } catch (error) {
+    console.error("Error generating hypotheses:", error);
+    throw error;
+  }
+}

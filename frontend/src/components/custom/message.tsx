@@ -1,14 +1,21 @@
-import { message } from "@/interfaces/interfaces";
-import { Bot, ChevronDown, ChevronUp, User } from "lucide-react";
-import { useState } from "react";
-import { Button } from "../ui/button";
+import { message, Hypothesis, ValidationReport } from "../../interfaces/interfaces";
+import { cn } from "../../lib/utils";
+import { Bot, User } from "lucide-react";
 import { IntermediateSteps } from "./IntermediateSteps";
 import { Markdown } from "./markdown";
+import { HypothesisSuggestions } from "./HypothesisSuggestions";
 
+function isHypothesisArray(steps: any): steps is Hypothesis[] {
+  return Array.isArray(steps) && steps.length > 0 && typeof steps[0] === 'object' && 'snp' in steps[0] && 'trait' in steps[0];
+}
 
-export function PreviewMessage({ message }: { message: message }) {
-  const [showSteps, setShowSteps] = useState(false);
-  const isAssistant = message.role === "assistant";
+function isValidationReport(steps: any): steps is ValidationReport {
+    return steps && typeof steps === 'object' && 'intermediate_steps' in steps && 'explanation' in steps;
+}
+
+export function Message({ message, onValidateHypothesis }: { message: message, onValidateHypothesis: (hypothesis: Hypothesis) => void }) {
+  const { role, content } = message;
+  const isAssistant = role === "assistant";
 
   return (
     <div className="flex flex-col group md:items-center">
@@ -16,28 +23,16 @@ export function PreviewMessage({ message }: { message: message }) {
         <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-primary shrink-0">
           {isAssistant ? <Bot size={20} /> : <User size={20} />}
         </div>
-        <div className="flex flex-col min-w-0 w-full">
-          <div className="font-semibold">
-            {isAssistant ? "Assistant" : "You"}
-          </div>
-          <div className="min-w-0">
-            <Markdown>{message.content}</Markdown>
-          </div>
-          {isAssistant && message.intermediate_steps && message.intermediate_steps.length > 0 && (
-            <div className="mt-2">
-              <Button variant="outline" size="sm" onClick={() => setShowSteps(!showSteps)}>
-                {showSteps ? "Hide Steps" : "Show Steps"}
-                {showSteps ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-              </Button>
-            </div>
+        <div className="flex-1 space-y-4">
+          <Markdown>{content}</Markdown>
+          {message.intermediate_steps && isValidationReport(message.intermediate_steps) && (
+            <IntermediateSteps report={message.intermediate_steps} />
+          )}
+          {message.intermediate_steps && isHypothesisArray(message.intermediate_steps) && (
+            <HypothesisSuggestions suggestions={message.intermediate_steps} onSelect={onValidateHypothesis} />
           )}
         </div>
       </div>
-      {showSteps && message.intermediate_steps && (
-        <div className="p-4 pt-0 md:max-w-3xl md:w-full md:pl-[64px]">
-            <IntermediateSteps steps={message.intermediate_steps} finalAnswer={message.content} />
-        </div>
-      )}
     </div>
   );
 }
