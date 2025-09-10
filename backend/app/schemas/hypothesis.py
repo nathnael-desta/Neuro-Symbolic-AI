@@ -51,3 +51,10 @@ class PrologQuery(BaseModel):
 class QueryTranslationError(BaseModel):
     """An error message for a failed NL-to-Prolog translation."""
     error: str
+
+class GenerationReport(BaseModel):
+    """The report for a generation-and-validation attempt."""
+    status: str  # Will be 'success' or 'failure'
+    message: str
+    attempts: int
+    hypotheses: List[Hypothesis]

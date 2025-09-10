@@ -1,22 +1,25 @@
 # backend/app/api/v1/endpoints/generation.py
 from fastapi import APIRouter, HTTPException
-from app.schemas.hypothesis import TopicRequest, HypothesisList
+# MODIFICATION: Import GenerationReport instead of HypothesisList
+from app.schemas.hypothesis import TopicRequest, GenerationReport
 from app.services import llm_service
 
 router = APIRouter()
 
-@router.post("/generate-hypotheses", response_model=HypothesisList)
+# MODIFICATION: The response_model is now GenerationReport
+@router.post("/generate-hypotheses", response_model=GenerationReport)
 async def generate_hypotheses(request: TopicRequest):
     """
-    Uses an LLM to generate plausible hypotheses based on a topic.
+    Initiates a loop to generate and validate hypotheses against the knowledge base.
     """
     try:
-        hypotheses = llm_service.generate_hypotheses_from_topic(request.topic)
-        if not hypotheses:
-            raise HTTPException(status_code=500, detail="LLM failed to generate valid hypotheses.")
+        # MODIFICATION: Call the new looping function in the service
+        report = llm_service.generate_and_validate_hypotheses_loop(request.topic)
         
-        return HypothesisList(hypotheses=hypotheses)
+        if not report.hypotheses and report.status == 'failure':
+            raise HTTPException(status_code=500, detail="The LLM failed to generate any hypotheses to test.")
+        
+        return report
     except Exception as e:
-        # Log the exception for debugging
         print(f"Hypothesis generation error: {e}")
         raise HTTPException(status_code=500, detail="An internal error occurred during hypothesis generation.")
