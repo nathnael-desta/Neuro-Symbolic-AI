@@ -2,11 +2,12 @@
 import os
 import json
 import random
+import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 from app.schemas.hypothesis import Hypothesis, GenerationReport
-# --- We need the prolog_service to perform live validation ---
 from app.services.prolog_service import prolog_service
+from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,90 +19,131 @@ except Exception as e:
     print(f"Error configuring Gemini API: {e}")
     raise
 
-def load_vocab_from_file(path: str) -> list[str]:
+# --- NEW: Robust, absolute path finding ---
+# This makes sure the app can always find its data files, regardless of where you run it from.
+try:
+    # Get the directory where this current file (llm_service.py) is located
+    current_file_dir = Path(__file__).parent
+    # Go up from 'services' -> 'app' -> 'backend' to the project root
+    PROJECT_ROOT = current_file_dir.parent.parent.parent
+    # Define the path to the knowledge base file
+    PROLOG_KB_PATH = PROJECT_ROOT / 'data_processing' / 'associations.pl'
+except Exception as e:
+    print(f"CRITICAL ERROR: Could not determine project root directory. {e}")
+    # Fallback for safety, though it may not work depending on execution context
+    PROLOG_KB_PATH = Path('data_processing/associations.pl')
+
+
+def parse_kb_for_filtering():
+    """Parses the associations.pl file to create a lookup structure."""
+    kb_data = {'by_category': {}, 'all_snps': set(), 'all_traits': set()}
+    # Ensure the path exists before trying to read it
+    if not PROLOG_KB_PATH.exists():
+        print(f"CRITICAL: Knowledge base file not found at '{PROLOG_KB_PATH}'")
+        return kb_data
+        
     try:
-        with open(path, 'r') as f:
-            return [line.strip() for line in f.readlines() if line.strip()]
-    except FileNotFoundError:
-        print(f"Warning: Vocabulary file not found at {path}")
-        return []
+        with open(PROLOG_KB_PATH, 'r') as f:
+            for line in f:
+                if not line.startswith('association('):
+                    continue
+                match = re.search(r"association\(\d+, '([^']*)', \[(.*)\], '([^']*)', .*\)\.", line)
+                if match:
+                    snp, categories_str, trait = match.groups()
+                    categories = [cat.strip().strip("'") for cat in categories_str.split(',')]
+                    kb_data['all_snps'].add(snp)
+                    kb_data['all_traits'].add(trait)
+                    for category in categories:
+                        if category not in kb_data['by_category']:
+                            kb_data['by_category'][category] = {'snps': set(), 'traits': set()}
+                        kb_data['by_category'][category]['snps'].add(snp)
+                        kb_data['by_category'][category]['traits'].add(trait)
+    except Exception as e:
+        print(f"CRITICAL: Failed to parse knowledge base for filtering. Error: {e}")
+    return kb_data
 
-VALID_TRAITS = load_vocab_from_file('../data_processing/vocab/unique_traits.txt')
-VALID_SNPS = load_vocab_from_file('../data_processing/vocab/unique_snps.txt')
-VALID_CATEGORIES = load_vocab_from_file('../data_processing/vocab/unique_categories.txt')
+PARSED_KB = parse_kb_for_filtering()
 
-
-
-# MODIFICATION: Added 'num_llm_calls' (your 'y' variable)
-def generate_and_validate_hypotheses_loop(topic: str, hypotheses_per_call: int = 50, num_llm_calls: int = 2) -> GenerationReport:
+def generate_and_validate_hypotheses_loop(topic: str, hypotheses_to_generate: int = 40) -> GenerationReport:
     """
-    Generates batches of hypotheses and validates them. Can make multiple LLM calls.
-    - hypotheses_per_call (x): How many ideas to ask for in each API call.
-    - num_llm_calls (y): How many times to call the API if no match is found.
+    Generates hypotheses using a Chain-of-Thought (CoT) prompting strategy
+    to improve the quality of the generated associations.
     """
-    if not all([VALID_TRAITS, VALID_SNPS, VALID_CATEGORIES]):
-        return GenerationReport(status='failure', message="Vocabulary lists are not loaded.", attempts=0, hypotheses=[])
+    sanitized_topic = topic.lower().replace(" ", "_")
+    
+    # Check if the PARSED_KB was loaded successfully
+    if not PARSED_KB['all_snps']:
+        return GenerationReport(status='failure', message="Knowledge base is empty or could not be loaded. Check server logs.", attempts=0, hypotheses=[])
+
+    if sanitized_topic in PARSED_KB['by_category']:
+        print(f"--- Topic '{topic}' found in KB. Using filtered vocabulary. ---")
+        topic_data = PARSED_KB['by_category'][sanitized_topic]
+        snp_sample_list = list(topic_data['snps'])
+        trait_sample_list = list(topic_data['traits'])
+    else:
+        print(f"--- Topic '{topic}' not in KB categories. Using general vocabulary. ---")
+        snp_sample_list = list(PARSED_KB['all_snps'])
+        trait_sample_list = list(PARSED_KB['all_traits'])
+
+    if not snp_sample_list or not trait_sample_list:
+        return GenerationReport(status='failure', message=f"Could not find any vocabulary for the topic '{topic}'.", attempts=0, hypotheses=[])
 
     model = genai.GenerativeModel('gemini-1.5-flash')
-    total_attempts = 0
-    all_checked_hypotheses = []
     
-    # This is the outer loop for 'y' - the number of times we call the LLM
-    for i in range(num_llm_calls):
-        print(f"--- Starting LLM Call #{i+1} of {num_llm_calls} ---")
-        
-        trait_sample = ", ".join(random.sample(VALID_TRAITS, min(len(VALID_TRAITS), 75)))
-        snp_sample = ", ".join(random.sample(VALID_SNPS, min(len(VALID_SNPS), 75)))
-        category_sample = ", ".join(random.sample(VALID_CATEGORIES, min(len(VALID_CATEGORIES), 30)))
-        
-        prompt = f"""
-        You are an expert bioinformatician's assistant. Your task is to generate {hypotheses_per_call} plausible, novel hypotheses about gene-trait associations related to the topic of "{topic}".
-        INSTRUCTIONS:
-        1. Your 'trait' MUST be an EXACT match from this list: [{trait_sample}]
-        2. Your 'snp' MUST be an EXACT match from this list: [{snp_sample}]
-        3. For context, the available trait categories are: [{category_sample}].
-        4. Return your response as a valid JSON array of objects with "snp" and "trait" keys.
-        """
-        
-        try:
-            config = genai.GenerationConfig(response_mime_type="application/json")
-            response = model.generate_content(prompt, generation_config=config)
-            
-            if not response.parts:
-                safety_feedback = response.prompt_feedback
-                error_details = f"LLM call #{i+1} was blocked by API safety filters. Reason: {safety_feedback.block_reason}."
-                return GenerationReport(status='failure', message=error_details, attempts=total_attempts, hypotheses=[])
-
-            hypotheses_data = json.loads(response.text)
-            key = list(hypotheses_data.keys())[0] if isinstance(hypotheses_data, dict) else None
-            current_batch = [Hypothesis(**item) for item in (hypotheses_data[key] if key else hypotheses_data)]
-        except Exception as e:
-            last_llm_error = str(e)
-            return GenerationReport(status='failure', message=f"LLM call #{i+1} failed. Error: {last_llm_error}", attempts=total_attempts, hypotheses=[])
-
-        # Inner loop to validate the batch we just received
-        for hypo in current_batch:
-            total_attempts += 1
-            all_checked_hypotheses.append(hypo)
-            
-            query = f"association(_, '{hypo.snp}', _, '{hypo.trait}', _)."
-            solutions = prolog_service.run_query(query)
-
-            if solutions:
-                return GenerationReport(
-                    status='success',
-                    message=f"Success! After checking {total_attempts} total hypotheses across {i+1} API call(s), a match was found.",
-                    attempts=total_attempts,
-                    hypotheses=[hypo]
-                )
-
-    # --- FAILURE: All loops finished without finding anything. ---
-    failed_sample = random.sample(all_checked_hypotheses, min(len(all_checked_hypotheses), 5))
+    snp_sample = ", ".join(random.sample(snp_sample_list, min(len(snp_sample_list), 100)))
+    trait_sample = ", ".join(random.sample(trait_sample_list, min(len(trait_sample_list), 100)))
     
+    prompt = f"""
+    You are a genomic researcher. Your task is to generate {hypotheses_to_generate} plausible hypotheses related to the topic "{topic}".
+    You must reason step-by-step to arrive at your conclusions.
+
+    AVAILABLE VOCABULARY:
+    - SNPs: [{snp_sample}]
+    - Traits: [{trait_sample}]
+
+    REASONING PROCESS (follow these steps):
+    1.  **Analyze the Topic:** Briefly state what the topic "{topic}" means in a biological context.
+    2.  **Identify Relevant Traits:** From the "Traits" list, identify a few traits that are most strongly related to your analysis of the topic. Explain your reasoning.
+    3.  **Propose Connections:** For each relevant trait you identified, use your general knowledge to suggest SNPs from the "SNPs" list that might plausibly be associated with it.
+    4.  **Final Output:** Format your final list of {hypotheses_to_generate} hypotheses as a clean JSON array at the very end of your response, enclosed in ```json ... ```. Do not include any other text after the JSON block.
+
+    EXAMPLE REASONING (for topic: 'longevity'):
+    Reasoning: Longevity relates to lifespan and health in old age. From the Traits list, 'age_at_death' is directly relevant. From the SNPs list, 'rs2802292' is a known variant in the FOXO3 gene associated with lifespan. Therefore, a plausible connection is ('rs2802292', 'age_at_death').
+
+    Now, begin your step-by-step reasoning for the topic "{topic}".
+    """
+    
+    try:
+        response = model.generate_content(prompt)
+        
+        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response.text)
+        if not json_match:
+            raise ValueError("LLM did not return a valid JSON block in its response.")
+            
+        hypotheses_data = json.loads(json_match.group(1))
+        all_hypotheses = [Hypothesis(**item) for item in hypotheses_data]
+    except Exception as e:
+        return GenerationReport(status='failure', message=f"LLM failed to generate or parse hypotheses. Error: {e}", attempts=0, hypotheses=[])
+
+    # --- Validation loop remains the same ---
+    for i, hypo in enumerate(all_hypotheses):
+        attempts_count = i + 1
+        query = f"association(_, '{hypo.snp}', _, '{hypo.trait}', _)."
+        solutions = prolog_service.run_query(query)
+
+        if solutions:
+            return GenerationReport(
+                status='success',
+                message=f"Success! After using Chain-of-Thought and checking {attempts_count} hypotheses, a match was found.",
+                attempts=attempts_count,
+                hypotheses=[hypo]
+            )
+
+    failed_sample = random.sample(all_hypotheses, min(len(all_hypotheses), 5))
     return GenerationReport(
         status='failure',
-        message=f"No matches found after checking {total_attempts} hypotheses across {num_llm_calls} API call(s).",
-        attempts=total_attempts,
+        message=f"No matches found after checking {len(all_hypotheses)} CoT-generated hypotheses.",
+        attempts=len(all_hypotheses),
         hypotheses=failed_sample
     )
 
