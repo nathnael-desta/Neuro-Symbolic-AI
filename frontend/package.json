@@ -19,6 +19,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@tailwindcss/typography": "^0.5.15",
+    "@tanstack/react-virtual": "^3.13.12",
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.0",
     "classix": "^2.2.0",

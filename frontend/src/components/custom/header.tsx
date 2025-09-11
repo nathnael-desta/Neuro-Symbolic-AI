@@ -19,10 +19,7 @@ export function Header({ title, onToggleSidebar, onSuggestHypotheses }: HeaderPr
         <h1 className="text-xl font-bold md:ml-0 ml-4">{title}</h1>
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={onSuggestHypotheses}>
-          <Sparkles className="mr-2 h-4 w-4" />
-          Suggest Hypotheses
-        </Button>
+
         <ThemeToggle />
       </div>
     </header>

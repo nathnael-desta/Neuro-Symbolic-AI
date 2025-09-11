@@ -5,12 +5,21 @@ import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 
 import { Header } from "@/components/custom/header";
-import { Sidebar } from "@/components/custom/sidebar";
+
 import { Message, ThinkingMessage } from "@/components/custom/message";
 import { ChatInput } from "@/components/custom/chatinput";
 import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
 import { fetchVocabulary } from "@/services/apiService";
 import { message } from "@/interfaces/interfaces";
+import { Button } from "@/components/ui/button";
+
+const validationExamples = [
+  { snp: 'rs7825175', trait: 'thyroid_stimulating_hormone', label: 'TSH' },
+  { snp: 'rs599839', trait: 'ldl', label: 'LDL Cholesterol' },
+  { snp: 'rs429358', trait: 'alzheimers_disease', label: "Alzheimer's" },
+  { snp: 'rs12946510', trait: 'coronary_heart_disease', label: 'Heart Disease' },
+];
+
 
 export function Chat() {
   const [messages, setMessages] = useState<message[]>([]);
@@ -108,24 +117,43 @@ useEffect(() => {
 
   return (
     <div className="flex h-dvh bg-background">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onQuestionClick={handleSuggest} />
+      {/* <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onQuestionClick={handleSuggest} /> */}
       <div className="flex flex-col flex-1 min-w-0">
         <Header title="Causal AI Validator" onToggleSidebar={handleToggleSidebar} onSuggestHypotheses={() => handleSuggest("a new hypothesis")} />
         <main ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
             <div className="flex h-full items-center justify-center">
-              <div className="max-w-xl text-center p-8">
-                <h1 className="text-2xl font-bold mb-4">Welcome!</h1>
-                <p className="text-muted-foreground">
+              <div className="max-w-2xl text-center p-8">
+                <h1 className="text-2xl font-bold mb-4">Causal AI Validator</h1>
+                <p className="text-muted-foreground mb-8">
                   Select a mode below to begin. Use 'Manual Validation' to test a specific SNP-trait pair, or 'AI Suggestions' to generate new hypotheses based on a topic.
                 </p>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-muted-foreground">Or, try an example:</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {validationExamples.map((pair, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        className="h-auto text-wrap"
+                        onClick={() => handleValidate(pair.snp, pair.trait)}
+                      >
+                        <span className="font-mono">{pair.snp}</span>
+                        <span className="mx-2">→</span>
+                        <span>{pair.label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
           {messages.map((msg) => <Message key={msg.id} message={msg} />)}
           {isLoading && <ThinkingMessage />}
         </main>
-        <ChatInput
+        <div className="p-4 border-t">
+                  <ChatInput
           snps={snps}
           traits={traits}
           categories={categories}
@@ -133,6 +161,8 @@ useEffect(() => {
           onValidate={handleValidate}
           onSuggest={handleSuggest}
         />
+        </div>
+
       </div>
     </div>
   );

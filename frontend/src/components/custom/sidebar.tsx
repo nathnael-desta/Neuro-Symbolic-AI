@@ -1,45 +1,52 @@
-import { Overview } from "./overview";
 import { Button } from "../ui/button";
-import { PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PanelLeftClose, FlaskConical } from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onQuestionClick: (question: string) => void;
-  className?: string;
+  onValidateClick: (snp: string, trait: string) => void;
 }
 
-export function Sidebar({ isOpen, onClose, onQuestionClick, className }: SidebarProps) {
+const validationExamples = [
+  { snp: "rs2543600", trait: "age_at_death", label: "Age at Death" },
+  { snp: "rs12931267", trait: "red_hair", label: "Red Hair" },
+  { snp: "rs726914", trait: "systolic_blood_pressure", label: "Blood Pressure" },
+  { snp: "rs2229238", trait: "interleukin_6_receptor", label: "IL-6 Receptor" },
+  { snp: "rs599839", trait: "ldl", label: "LDL Cholesterol" },
+  { snp: "rs12203592", trait: "freckling", label: "Freckling" },
+];
+
+export function Sidebar({ isOpen, onClose, onValidateClick }: SidebarProps) {
   return (
-    <>
-      {/* Backdrop for mobile */}
-      {isOpen && (
-        <div
-          onClick={onClose}
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-        />
+    <div
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 w-64 bg-card border-r transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
       )}
-      <div
-        className={cn(
-          "fixed top-0 left-0 z-40 h-full bg-secondary text-secondary-foreground transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full",
-          "w-80", // Fixed width for the sidebar
-          className
-        )}
-      >
-        <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-4 pb-0 mb-4">
-                <h2 className="text-lg font-semibold">Suggestions</h2>
-                <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
-                <PanelLeftClose className="h-5 w-5" />
-                </Button>
-            </div>
-            <div className="overflow-y-auto px-4">
-                <Overview onQuestionClick={onQuestionClick} />
-            </div>
-        </div>
+    >
+      <div className="flex items-center justify-between p-4 border-b">
+        <h2 className="text-lg font-semibold">Quick Tests</h2>
+        <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
+          <PanelLeftClose className="h-5 w-5" />
+        </Button>
       </div>
-    </>
+      <div className="p-4 space-y-2">
+        {validationExamples.map((ex, index) => (
+          <Button
+            key={index}
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => {
+              onValidateClick(ex.snp, ex.trait);
+              if (window.innerWidth < 768) onClose();
+            }}
+          >
+            <FlaskConical className="mr-2 h-4 w-4" />
+            {ex.label}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }

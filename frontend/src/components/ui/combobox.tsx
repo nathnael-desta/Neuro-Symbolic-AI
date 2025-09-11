@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,21 @@ export function Combobox({
   className 
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+
+  const filteredOptions = React.useMemo(() => 
+    options.filter(option => 
+      option.label.toLowerCase().includes(search.toLowerCase())
+    ), [options, search]);
+
+  const parentRef = React.useRef<HTMLDivElement>(null)
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredOptions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 32,
+    overscan: 5,
+  })
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -56,30 +72,57 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height] p-0">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
-            <CommandEmpty>{emptyPlaceholder}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    onSelect(currentValue === value ? "" : currentValue)
-                    setOpen(false)
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === option.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+        <Command 
+          key={filteredOptions.length} // FIX: Add key to force re-mount on filter change
+          shouldFilter={false}
+        >
+          <CommandInput 
+            value={search}
+            onValueChange={setSearch}
+            placeholder={searchPlaceholder} 
+          />
+          <CommandList ref={parentRef}>
+            {rowVirtualizer.getVirtualItems().length === 0 ? (
+              <CommandEmpty>{emptyPlaceholder}</CommandEmpty>
+            ) : (
+              <CommandGroup
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const option = filteredOptions[virtualItem.index]
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${virtualItem.size}px`,
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                      value={option.value}
+                      onSelect={(currentValue) => {
+                        onSelect(currentValue === value ? "" : currentValue)
+                        setOpen(false)
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {option.label}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
