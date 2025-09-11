@@ -53,8 +53,10 @@ class QueryTranslationError(BaseModel):
     error: str
 
 class GenerationReport(BaseModel):
-    """The report for a generation-and-validation attempt."""
-    status: str  # Will be 'success' or 'failure'
+    """The complete report for a hypothesis generation task."""
+    status: str
     message: str
     attempts: int
-    hypotheses: List[Hypothesis]
+    hypotheses: List[Hypothesis] # Will contain the success OR a sample of failures
+    tested_hypotheses: Optional[List[Hypothesis]] = None # New field for failed examples on success
+
