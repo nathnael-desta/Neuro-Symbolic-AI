@@ -11,10 +11,10 @@ interface SuggestionResultProps {
   message: string;
   attempts: number;
   hypotheses: Hypothesis[];
-  tested_hypotheses?: Hypothesis[] | null; // FIX: Changed prop name to snake_case
+  tested_hypotheses?: Hypothesis[] | null;
 }
 
-export function SuggestionResult({ status, message, attempts, hypotheses, tested_hypotheses }: SuggestionResultProps) { // FIX: Destructure the correct prop name
+export function SuggestionResult({ status, message, attempts, hypotheses, tested_hypotheses }: SuggestionResultProps) {
   const isSuccess = status === 'success';
   const [showTested, setShowTested] = useState(false);
 
@@ -31,19 +31,25 @@ export function SuggestionResult({ status, message, attempts, hypotheses, tested
         <div className="space-y-4">
           <Badge variant="secondary">Attempts: {attempts}</Badge>
           
-          {isSuccess && hypotheses.length > 0 && (
+          {hypotheses && hypotheses.length > 0 && (
             <div>
-              <h4 className="font-semibold text-sm mb-2">Validated Hypothesis</h4>
-              {hypotheses.map((hyp, i) => (
-                <div key={i} className="p-2 bg-secondary rounded-md">
-                  <p className="font-mono text-sm">SNP: {hyp.snp}</p>
-                  <p className="text-sm text-muted-foreground">Trait: {hyp.trait.replace(/_/g, ' ')}</p>
+              <h4 className="font-semibold text-sm mb-2">
+                {isSuccess ? "Validated Hypothesis" : "Generated Hypotheses"}
+              </h4>
+              <ScrollArea className="h-40 w-full rounded-md border p-2">
+                <div className="space-y-2">
+                  {hypotheses.map((hyp, i) => (
+                    <div key={i} className="p-2 bg-secondary/50 rounded-md">
+                      <p className="font-mono text-sm font-bold">SNP: {hyp.snp}</p>
+                      <p className="text-sm text-muted-foreground">Trait: {hyp.trait.replace(/_/g, ' ')}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </ScrollArea>
             </div>
           )}
 
-          {tested_hypotheses && tested_hypotheses.length > 0 && ( // FIX: Check the correct variable
+          {tested_hypotheses && tested_hypotheses.length > 0 && (
             <div>
               <Button 
                 variant="outline" 
@@ -58,7 +64,7 @@ export function SuggestionResult({ status, message, attempts, hypotheses, tested
               {showTested && (
                 <ScrollArea className="h-40 w-full rounded-md border p-2 mt-2">
                   <div className="space-y-1">
-                    {tested_hypotheses.map((hyp, i) => ( // FIX: Map over the correct variable
+                    {tested_hypotheses.map((hyp, i) => (
                       <div key={i} className="text-xs text-muted-foreground font-mono truncate" title={`${hyp.snp}: ${hyp.trait.replace(/_/g, ' ')}`}>
                         <p className="font-bold">{hyp.snp}</p>
                         <p>{hyp.trait.replace(/_/g, ' ')}</p>
