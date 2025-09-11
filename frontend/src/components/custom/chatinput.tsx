@@ -6,27 +6,30 @@ import { Send, Loader } from "lucide-react";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch"; // Assuming you have a Switch component
 import { useEffect, useState } from 'react';
+import { Combobox } from '../ui/combobox';
 
 interface ChatInputProps {
-  input: string;
-  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSendMessage: () => void;
+  snps: string[];
+  traits: string[];
+  categories: string[];
   isLoading: boolean;
-  isSuggestMode: boolean;
-  setSuggestMode: (value: boolean) => void;
-  handleSuggestHypotheses: () => void;
+  onValidate: (snp: string, trait: string) => void;
+  onSuggest: (topic: string) => void;
 }
 
 export function ChatInput({
-  input,
-  handleInputChange,
-  handleSendMessage,
+  snps,
+  traits,
+  categories,
   isLoading,
-  isSuggestMode,
-  setSuggestMode,
-  handleSuggestHypotheses,
+  onValidate,
+  onSuggest,
 }: ChatInputProps) {
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isSuggestMode, setSuggestMode] = useState(false);
+  const [selectedSnp, setSelectedSnp] = useState("");
+  const [selectedTrait, setSelectedTrait] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -37,10 +40,21 @@ export function ChatInput({
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+
+
+  const snpOptions = snps.map(s => ({ value: s, label: s }));
+  const traitOptions = traits.map(t => ({ value: t, label: t.replace(/_/g, ' ') }));
+  const categoryOptions = categories.map(c => ({ value: c, label: c }));
+
+  const handleValidate = () => {
+    if (selectedSnp && selectedTrait) {
+      onValidate(selectedSnp, selectedTrait);
+    }
+  };
+
+  const handleSuggest = () => {
+    if (selectedCategory) {
+      onSuggest(selectedCategory);
     }
   };
 
@@ -62,40 +76,48 @@ export function ChatInput({
         />
       </div>
       {isSuggestMode ? (
-        <Button onClick={handleSuggestHypotheses} disabled={isLoading} className="w-full">
-          {isLoading ? (
-            <Loader className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            "Generate Suggestions"
-          )}
-        </Button>
-      ) : (
-        <>
-          <Textarea
-            placeholder="Type your hypothesis here or use 'Suggest Hypotheses'..."
-            className={cx(
-              'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-xl text-base bg-muted pr-16',
-            )}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            rows={3}
-            autoFocus={isDesktop}
+        // AI Suggestion Mode
+        <div className="flex items-center gap-2">
+          <Combobox
+            options={categoryOptions}
+            value={selectedCategory}
+            onSelect={setSelectedCategory}
+            placeholder="Select a topic..."
+            searchPlaceholder="Search topics..."
+            emptyPlaceholder="No topics found."
+            className="flex-1"
           />
-          <Button
-            size="icon"
-            className="absolute top-1/2 right-3 transform -translate-y-1/2 rounded-full p-1.5 h-fit m-0.5 border dark:border-zinc-600"
-            onClick={handleSendMessage}
-            disabled={isLoading || !input.trim()}
-          >
-            {isLoading ? (
-              <Loader className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+          <Button onClick={handleSuggest} disabled={isLoading || !selectedCategory}>
+            {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Suggest
           </Button>
-        </>
+        </div>
+      ) : (
+        // Manual Validation Mode
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <Combobox
+              options={snpOptions}
+              value={selectedSnp}
+              onSelect={setSelectedSnp}
+              placeholder="Select SNP..."
+              searchPlaceholder="Search SNPs..."
+              emptyPlaceholder="No SNPs found."
+            />
+            <Combobox
+              options={traitOptions}
+              value={selectedTrait}
+              onSelect={setSelectedTrait}
+              placeholder="Select Trait..."
+              searchPlaceholder="Search traits..."
+              emptyPlaceholder="No traits found."
+            />
+          </div>
+          <Button onClick={handleValidate} disabled={isLoading || !selectedSnp || !selectedTrait} className="w-full">
+            {isLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Validate Association
+          </Button>
+        </div>
       )}
     </div>
   );

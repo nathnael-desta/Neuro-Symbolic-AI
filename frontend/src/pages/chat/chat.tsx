@@ -1,188 +1,139 @@
 // frontend/src/pages/chat.tsx (or wherever your file is located)
 
-import { ChatInput } from "@/components/custom/chatinput";
-import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Header } from "../../components/custom/header";
-import { Sidebar } from "../../components/custom/sidebar";
-import { Message, ThinkingMessage } from "../../components/custom/message";
-import { generateHypotheses } from "../../services/apiService";
-import { message, Hypothesis } from "../../interfaces/interfaces";
 import axios from "axios";
+
+import { Header } from "@/components/custom/header";
+import { Sidebar } from "@/components/custom/sidebar";
+import { Message, ThinkingMessage } from "@/components/custom/message";
+import { ChatInput } from "@/components/custom/chatinput";
+import { useScrollToBottom } from '@/components/custom/use-scroll-to-bottom';
+import { fetchVocabulary } from "@/services/apiService";
+import { message } from "@/interfaces/interfaces";
 
 export function Chat() {
   const [messages, setMessages] = useState<message[]>([]);
-const [messagesContainerRef, bottomRef] = useScrollToBottom<HTMLDivElement>();
-  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
-  const [isSuggestMode, setSuggestMode] = useState<boolean>(false);
+  
+  // Vocabulary state
+  const [snps, setSnps] = useState<string[]>([]);
+  const [traits, setTraits] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
-  const submitQuery = async (query: string) => {
-    if (isLoading || !query.trim()) return;
+const [messagesContainerRef, bottomRef] = useScrollToBottom<HTMLDivElement>();
 
-    setIsLoading(true);
-    if (isSidebarOpen && window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
-
-    const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: query, role: "user", id: traceId }]);
-    setInput("");
-
-    const parts = query.trim().toLowerCase().split(' ');
-    const command = parts[0];
-    
-    if (command !== 'validate' || !parts.includes('snp:') || !parts.includes('trait:')) {
-        const errorMessage: message = {
-            content: "Sorry, I didn't understand that. Please use the format: validate snp: <snp_id> trait: \"<trait_description>\"",
-            role: "assistant",
-            id: traceId
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setIsLoading(false);
-        return;
-    }
-
-    try {
-        const snpIndex = parts.indexOf('snp:') + 1;
-        const traitIndex = parts.indexOf('trait:') + 1;
-        const snp = parts[snpIndex];
-        const trait = query.split(/trait: "/i)[1].replace(/"$/, '');
-
-        const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/validate`;
-        const response = await axios.post(apiUrl, { snp, trait });
-
-        const validationReport = response.data;
-        const botAnswer = validationReport.explanation;
-
-        const newMessage: message = {
-            content: botAnswer,
-            role: "assistant",
-            id: traceId,
-            intermediate_steps: validationReport 
-        };
-        setMessages(prev => [...prev, newMessage]);
-
-    } catch (error) {
-        console.error("API call error:", error);
-        const errorMessage: message = {
-            content: "Sorry, an error occurred while talking to the API. Please check the server logs.",
-            role: "assistant",
-            id: traceId
-        };
-        setMessages(prev => [...prev, errorMessage]);
-    } finally {
-        setIsLoading(false);
-    }
-  }
-
-  const handleToggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-  };
-
-  const handleSendMessage = async () => {
-    await submitQuery(input);
-  };
-
-  async function handleSuggestHypotheses() {
-    if (isLoading) return;
-
-    const topic = window.prompt("Enter a topic to generate hypotheses (e.g., longevity, inflammation):");
-    if (!topic) return;
-
-    setIsLoading(true);
-
-    const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: `Generate hypotheses for: ${topic}`, role: "user", id: traceId }]);
-
-    try {
-      const suggestions = await generateHypotheses(topic);
-      
-      const newMessage: message = {
-        content: `Here are some suggestions related to "${topic}":`,
-        role: "assistant",
-        id: traceId,
-        intermediate_steps: suggestions 
-      };
-      setMessages(prev => [...prev, newMessage]);
-
-    } catch (error) {
-      console.error("Suggestion generation error:", error);
-      const errorMessage: message = {
-        content: "Sorry, I couldn't generate suggestions. The API might be down.",
-        role: "assistant",
-        id: traceId
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const handleValidateHypothesis = async (hypothesis: Hypothesis) => {
-    const command = `validate snp: ${hypothesis.snp} trait: "${hypothesis.trait}"`;
-    await submitQuery(command);
-  };
+  // Fetch vocabulary on mount
+  useEffect(() => {
+    const loadVocab = async () => {
+      setSnps(await fetchVocabulary('unique_snps.txt'));
+      setTraits(await fetchVocabulary('unique_traits.txt'));
+      setCategories(await fetchVocabulary('unique_categories.txt'));
+    };
+    loadVocab();
+  }, []);
 
 useEffect(() => {
   bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }, [messages]);
 
+  const handleToggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  // Handles manual validation
+  const handleValidate = async (snp: string, trait: string) => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    const userContent = `Validating SNP: ${snp} with Trait: ${trait.replace(/_/g, ' ')}`;
+    const traceId = uuidv4();
+    setMessages(prev => [...prev, { content: userContent, role: "user", id: traceId }]);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/validate`;
+      const response = await axios.post(apiUrl, { snp, trait });
+      const data = response.data;
+
+      const newMessage: message = {
+        content: data.explanation,
+        role: "assistant",
+        id: traceId,
+        response_data: data,
+      };
+      setMessages(prev => [...prev, newMessage]);
+    } catch (error) {
+      console.error("Validation API error:", error);
+      setMessages(prev => [...prev, {
+        content: "An error occurred during validation. Please check the console.",
+        role: "assistant",
+        id: traceId,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handles AI-powered suggestions
+  const handleSuggest = async (topic: string) => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    const userContent = `Generating hypotheses for topic: ${topic}`;
+    const traceId = uuidv4();
+    setMessages(prev => [...prev, { content: userContent, role: "user", id: traceId }]);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/generate-hypotheses`;
+      const response = await axios.post(apiUrl, { topic });
+      const data = response.data;
+
+      const newMessage: message = {
+        content: data.message,
+        role: "assistant",
+        id: traceId,
+        response_data: data,
+      };
+      setMessages(prev => [...prev, newMessage]);
+    } catch (error) {
+      console.error("Suggestion API error:", error);
+      setMessages(prev => [...prev, {
+        content: "An error occurred while generating suggestions. Please check the console.",
+        role: "assistant",
+        id: traceId,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-dvh bg-background">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onQuestionClick={(q) => submitQuery(q)}
-      />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onQuestionClick={handleSuggest} />
       <div className="flex flex-col flex-1 min-w-0">
-        <Header 
-          title="Gene-Trait Validation" 
-          onToggleSidebar={handleToggleSidebar}
-          onSuggestHypotheses={handleSuggestHypotheses}
-        />
+        <Header title="Causal AI Validator" onToggleSidebar={handleToggleSidebar} onSuggestHypotheses={() => handleSuggest("a new hypothesis")} />
         <main ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
+          {messages.length === 0 && (
             <div className="flex h-full items-center justify-center">
-              <div className="max-w-xl text-center bg-card rounded-xl shadow-lg p-8 border border-border">
-              <h1 className="text-2xl font-bold mb-4 flex items-center justify-center gap-2">
-                Neuro-Symbolic AI Chatbot
-                <span role="img" aria-label="dna">🧬</span>
-              </h1>
-              <p className="mb-4">
-                This tool allows you to validate gene-trait associations against a Prolog knowledge base.
-              </p>
-              <p>
-                To begin, please use the format: <strong>validate snp: [snp_id] trait: "[trait_description]"</strong>
-              </p>
-              <p className="mt-6 text-muted-foreground">
-                For example: <strong>validate snp: rs2543600 trait: "age at death"</strong>
-              </p>
+              <div className="max-w-xl text-center p-8">
+                <h1 className="text-2xl font-bold mb-4">Welcome!</h1>
+                <p className="text-muted-foreground">
+                  Select a mode below to begin. Use 'Manual Validation' to test a specific SNP-trait pair, or 'AI Suggestions' to generate new hypotheses based on a topic.
+                </p>
               </div>
             </div>
           )}
-          {messages.map((msg) => (
-            <Message key={msg.id} message={msg} onValidateHypothesis={handleValidateHypothesis} />
-          ))}
+          {messages.map((msg) => <Message key={msg.id} message={msg} />)}
           {isLoading && <ThinkingMessage />}
-          <div ref={bottomRef} />
         </main>
-          <ChatInput
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            isSuggestMode={isSuggestMode}
-            setSuggestMode={setSuggestMode}
-            handleSuggestHypotheses={handleSuggestHypotheses}
-          />
-        </div>
+        <ChatInput
+          snps={snps}
+          traits={traits}
+          categories={categories}
+          isLoading={isLoading}
+          onValidate={handleValidate}
+          onSuggest={handleSuggest}
+        />
       </div>
-  )
-};
+    </div>
+  );
+}

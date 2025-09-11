@@ -29,3 +29,17 @@ export async function generateHypotheses(topic: string) {
     throw error;
   }
 }
+
+export async function fetchVocabulary(fileName: 'unique_snps.txt' | 'unique_traits.txt' | 'unique_categories.txt'): Promise<string[]> {
+  try {
+    const response = await fetch(`/vocab/${fileName}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${fileName}`);
+    }
+    const text = await response.text();
+    return text.split('\n').filter(line => line.trim() !== '');
+  } catch (error) {
+    console.error(`Error fetching vocabulary from ${fileName}:`, error);
+    return []; // Return empty array on error
+  }
+}
