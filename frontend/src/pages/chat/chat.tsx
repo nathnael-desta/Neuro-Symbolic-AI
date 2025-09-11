@@ -55,8 +55,7 @@ useEffect(() => {
     setIsLoading(true);
 
     const userContent = `Validating SNP: ${snp} with Trait: ${trait.replace(/_/g, ' ')}`;
-    const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: userContent, role: "user", id: traceId }]);
+    setMessages(prev => [...prev, { content: userContent, role: "user", id: uuidv4() }]);
 
     try {
       const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/validate`;
@@ -66,7 +65,7 @@ useEffect(() => {
       const newMessage: message = {
         content: data.explanation,
         role: "assistant",
-        id: traceId,
+        id: uuidv4(), // FIX: Use a new unique ID for the assistant message
         response_data: data,
       };
       setMessages(prev => [...prev, newMessage]);
@@ -75,7 +74,7 @@ useEffect(() => {
       setMessages(prev => [...prev, {
         content: "An error occurred during validation. Please check the console.",
         role: "assistant",
-        id: traceId,
+        id: uuidv4(), // FIX: Use a new unique ID for the error message
       }]);
     } finally {
       setIsLoading(false);
@@ -88,8 +87,7 @@ useEffect(() => {
     setIsLoading(true);
 
     const userContent = `Generating hypotheses for topic: ${topic}`;
-    const traceId = uuidv4();
-    setMessages(prev => [...prev, { content: userContent, role: "user", id: traceId }]);
+    setMessages(prev => [...prev, { content: userContent, role: "user", id: uuidv4() }]);
 
     try {
       const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1/generate-hypotheses`;
@@ -99,7 +97,7 @@ useEffect(() => {
       const newMessage: message = {
         content: data.message,
         role: "assistant",
-        id: traceId,
+        id: uuidv4(), // FIX: Use a new unique ID for the assistant message
         response_data: data,
       };
       setMessages(prev => [...prev, newMessage]);
@@ -108,7 +106,7 @@ useEffect(() => {
       setMessages(prev => [...prev, {
         content: "An error occurred while generating suggestions. Please check the console.",
         role: "assistant",
-        id: traceId,
+        id: uuidv4(), // FIX: Use a new unique ID for the error message
       }]);
     } finally {
       setIsLoading(false);

@@ -8,46 +8,47 @@ interface Evidence {
 }
 
 interface ValidationResultProps {
-  isSupported: boolean;
-  supportingEvidence: Evidence[];
-  confidenceScore: number;
+  is_supported: boolean;
+  supporting_evidence: Evidence[];
+  confidence_score: number;
   explanation: string;
 }
 
-export function ValidationResult({ isSupported, supportingEvidence, confidenceScore, explanation }: ValidationResultProps) {
+export function ValidationResult({ is_supported, supporting_evidence, confidence_score, explanation }: ValidationResultProps) {
   return (
-    <Card className={isSupported ? "border-green-500" : "border-red-500"}>
+    <Card className={is_supported ? "border-green-500" : "border-red-500"}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {isSupported ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
-          Validation Result: {isSupported ? "Supported" : "Not Supported"}
+          {is_supported ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
+          Validation Result: {is_supported ? "Supported" : "Not Supported"}
         </CardTitle>
         <CardDescription>{explanation}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div>
-            <h4 className="font-semibold text-sm mb-2">Confidence Score</h4>
-            <Badge variant={isSupported ? "default" : "destructive"}>
-              {(confidenceScore * 100).toFixed(2)}%
-            </Badge>
-          </div>
-          {isSupported && supportingEvidence.length > 0 && (
+
+          {is_supported && supporting_evidence && supporting_evidence.length > 0 && (
             <div>
               <h4 className="font-semibold text-sm mb-2">Supporting Evidence</h4>
               <div className="space-y-2">
-                {supportingEvidence.map((evi) => (
-                  <a
-                    key={evi.pmid}
-                    href={`https://pubmed.ncbi.nlm.nih.gov/${evi.pmid}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span>PMID: {evi.pmid} (p-log: {evi.p_value_log.toFixed(2)})</span>
-                  </a>
-                ))}
+                {supporting_evidence.map((evi, index) => {
+                  const pValueLogText = typeof evi.p_value_log === 'number' 
+                    ? evi.p_value_log.toFixed(2) 
+                    : 'N/A';
+
+                  return (
+                    <a
+                      key={evi.pmid || index}
+                      href={evi.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${evi.pmid}`: '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>PMID: {evi.pmid || 'N/A'} (p-log: {pValueLogText})</span>
+                    </a>
+                  );
+                })}
               </div>
             </div>
           )}
