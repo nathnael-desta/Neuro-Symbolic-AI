@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import { Send, Loader } from "lucide-react";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch"; // Assuming you have a Switch component
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react'; // Import memo
 import { Combobox } from '../ui/combobox';
 
 interface ChatInputProps {
@@ -17,14 +17,15 @@ interface ChatInputProps {
   onSuggest: (topic: string) => void;
 }
 
-export function ChatInput({
+// Wrap the component in React.memo
+export const ChatInput = memo(({
   snps,
   traits,
   categories,
   isLoading,
   onValidate,
   onSuggest,
-}: ChatInputProps) {
+}: ChatInputProps) => {
   const [isDesktop, setIsDesktop] = useState(false);
   const [isSuggestMode, setSuggestMode] = useState(false);
   const [selectedSnp, setSelectedSnp] = useState("");
@@ -121,4 +122,4 @@ export function ChatInput({
       )}
     </div>
   );
-}
+});

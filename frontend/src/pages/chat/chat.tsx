@@ -1,6 +1,6 @@
 // frontend/src/pages/chat.tsx (or wherever your file is located)
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react"; // Import useCallback
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 
@@ -49,8 +49,8 @@ useEffect(() => {
 
   const handleToggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  // Handles manual validation
-  const handleValidate = async (snp: string, trait: string) => {
+  // FIX: Wrap handleValidate in useCallback
+  const handleValidate = useCallback(async (snp: string, trait: string) => {
     if (isLoading) return;
     setIsLoading(true);
 
@@ -65,7 +65,7 @@ useEffect(() => {
       const newMessage: message = {
         content: data.explanation,
         role: "assistant",
-        id: uuidv4(), // FIX: Use a new unique ID for the assistant message
+        id: uuidv4(),
         response_data: data,
       };
       setMessages(prev => [...prev, newMessage]);
@@ -74,15 +74,15 @@ useEffect(() => {
       setMessages(prev => [...prev, {
         content: "An error occurred during validation. Please check the console.",
         role: "assistant",
-        id: uuidv4(), // FIX: Use a new unique ID for the error message
+        id: uuidv4(),
       }]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isLoading]); // Dependency array for useCallback
 
-  // Handles AI-powered suggestions
-  const handleSuggest = async (topic: string) => {
+  // FIX: Wrap handleSuggest in useCallback
+  const handleSuggest = useCallback(async (topic: string) => {
     if (isLoading) return;
     setIsLoading(true);
 
@@ -97,7 +97,7 @@ useEffect(() => {
       const newMessage: message = {
         content: data.message,
         role: "assistant",
-        id: uuidv4(), // FIX: Use a new unique ID for the assistant message
+        id: uuidv4(),
         response_data: data,
       };
       setMessages(prev => [...prev, newMessage]);
@@ -106,12 +106,12 @@ useEffect(() => {
       setMessages(prev => [...prev, {
         content: "An error occurred while generating suggestions. Please check the console.",
         role: "assistant",
-        id: uuidv4(), // FIX: Use a new unique ID for the error message
+        id: uuidv4(),
       }]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isLoading]); // Dependency array for useCallback
 
   return (
     <div className="flex h-dvh bg-background">

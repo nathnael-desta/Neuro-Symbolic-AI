@@ -56,6 +56,13 @@ export function Combobox({
     overscan: 5,
   })
 
+  // When the popover opens, reset the search
+  React.useEffect(() => {
+    if (!open) {
+      setSearch("")
+    }
+  }, [open])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -72,10 +79,7 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height] p-0">
-        <Command 
-          key={filteredOptions.length} // FIX: Add key to force re-mount on filter change
-          shouldFilter={false}
-        >
+        <Command shouldFilter={false}> {/* FIX: Removed the key prop */}
           <CommandInput 
             value={search}
             onValueChange={setSearch}
